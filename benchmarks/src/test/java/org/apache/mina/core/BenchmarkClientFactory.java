@@ -30,6 +30,8 @@ public class BenchmarkClientFactory implements BenchmarkFactory<BenchmarkClient>
         switch (type) {
         case Mina:
             return new Mina3BenchmarkClient();
+        case MinaAsync:
+            return new Mina3AsyncBenchmarkClient();
         case Netty:
             return new NettyBenchmarkClient();
         default:

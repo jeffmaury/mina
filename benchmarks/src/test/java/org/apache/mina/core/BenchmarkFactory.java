@@ -29,7 +29,7 @@ public interface BenchmarkFactory<T> {
      * The different types of providers
      */
     public enum Type {
-        Mina, Netty
+        Mina, Netty, MinaAsync
     }
 
     /**

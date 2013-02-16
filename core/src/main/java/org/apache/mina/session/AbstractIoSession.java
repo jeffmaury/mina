@@ -565,17 +565,17 @@ public abstract class AbstractIoSession implements IoSession, ReadFilterChainCon
 
                 // We don't have anything in the writeQueue, let's try to write the
                 // data in the channel immediately if we can
+                int remaining = message.remaining();
                 int written = writeDirect(writeRequest.getMessage());
-
                 LOG.debug("wrote {} bytes to {}", written, this);
 
                 if (written > 0) {
                     incrementWrittenBytes(written);
+                    remaining -= written;
                 }
 
                 // Update the idle status for this session
                 idleChecker.sessionWritten(this, System.currentTimeMillis());
-                int remaining = message.remaining();
 
                 if ((written < 0) || (remaining > 0)) {
                     // Create a DirectBuffer unconditionally
