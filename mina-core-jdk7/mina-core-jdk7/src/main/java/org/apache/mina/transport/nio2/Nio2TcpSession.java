@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.mina.api.IoService;
 import org.apache.mina.api.IoSession;
 import org.apache.mina.api.IoSessionConfig;
+import org.apache.mina.api.IoSession.SessionState;
 import org.apache.mina.service.idlechecker.IdleChecker;
 import org.apache.mina.session.AbstractIoSession;
 import org.apache.mina.session.WriteRequest;
@@ -34,7 +35,7 @@ public class Nio2TcpSession extends AbstractIoSession {
         @Override
         public void completed(Void result, Nio2TcpSession attachment) {
             setResult(attachment);
-            attachment.processSessionOpen();
+            attachment.setConnected();
             attachment.scheduleRead();
             
         }
@@ -62,13 +63,29 @@ public class Nio2TcpSession extends AbstractIoSession {
     
     private int counter = 0;
     
+    private final int sendBufferSize;
+    
     Nio2TcpSession(final IoService service, final IdleChecker idleChecker, final AsynchronousSocketChannel channel) {
         super(service, idleChecker);
         this.channel = channel;
         this.configuration = new Nio2SessionConfig(channel);
         this.readBuffer = ByteBuffer.allocateDirect(configuration.getReceiveBufferSize());
+        this.sendBufferSize = configuration.getSendBufferSize();
     }
     
+    /**
+     * Set this session status as connected. To be called by the processor selecting/polling this session.
+     */
+    void setConnected() {
+        if (!isCreated()) {
+            throw new RuntimeException("Trying to open a non created session");
+        }
+
+        state = SessionState.CONNECTED;
+
+        processSessionOpen();
+    }
+
     /**
      * {@inheritDoc}
      */

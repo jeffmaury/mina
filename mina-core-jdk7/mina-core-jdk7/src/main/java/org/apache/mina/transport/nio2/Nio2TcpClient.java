@@ -106,8 +106,15 @@ public class Nio2TcpClient extends AbstractTcpClient {
     }
 
     public void disconnect() {
-        // TODO Auto-generated method stub
-        
+        // Close all the existing sessions
+        for (IoSession session : getManagedSessions().values()) {
+            session.close(true);
+        }
+
+        fireServiceInactivated();
+
+        // will stop the idle processor if we are the last service
+        idleChecker.destroy();
     }
 
 }
