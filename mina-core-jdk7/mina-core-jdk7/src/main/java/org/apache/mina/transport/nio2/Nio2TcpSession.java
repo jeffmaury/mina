@@ -177,7 +177,7 @@ public class Nio2TcpSession extends AbstractIoSession {
             
             @Override
             public void completed(Integer result, Void attachment) {
-                System.out.println("Write confirmed " + result + " bytes " + (System.currentTimeMillis() - start) + " remaining=" + buffer.remaining());
+                //System.out.println("Write confirmed " + result + " bytes " + (System.currentTimeMillis() - start) + " remaining=" + buffer.remaining());
                 if (buffer.remaining() > 0) {
                     channel.write(buffer, null, this);
                 } else {
@@ -188,7 +188,7 @@ public class Nio2TcpSession extends AbstractIoSession {
         };
         if (writeRunning.compareAndSet(false, true)) {
               int length = buffer.remaining();
-              System.out.println("Writing " + buffer.remaining() + " bytes counter=" + counter++);
+              //System.out.println("Writing " + buffer.remaining() + " bytes counter=" + counter++);
               channel.write(buffer, null, writeHandler);
               return length;
             
