@@ -265,7 +265,7 @@ public class Nio2TcpSession extends AbstractIoSession {
             readRunning.set(false);
             readBuffer.flip();
             processMessageReceived(readBuffer);
-            if (/*attachment.isConnected() &&*/ !readSuspended) {
+            if (attachment.isConnected() && !readSuspended) {
                 attachment.scheduleRead();
             }
             flushWriteQueue();
