@@ -159,6 +159,34 @@ public class Nio2TcpSession extends AbstractIoSession {
         return configuration;
     }
 
+    class WriteCompletionHandler implements CompletionHandler<Integer, ByteBuffer> {
+
+        @Override
+        public void completed(Integer result, ByteBuffer buffer) {
+            //System.out.println("Write confirmed " + result + " bytes " + (System.currentTimeMillis() - start) + " remaining=" + buffer.remaining());
+            if (buffer.remaining() > 0) {
+                channel.write(buffer, buffer, this);
+            } else {
+                //System.out.println(System.nanoTime() + " end write");
+                WriteRequest request = getWriteQueue().poll();
+                if (request != null) {
+                    //.println(System.nanoTime() + " starting write");
+                    channel.write((ByteBuffer)request.getMessage(), (ByteBuffer)request.getMessage(), this);                        
+                } else {
+                    writeRunning.set(false);
+                }
+            }
+        }
+
+        @Override
+        public void failed(Throwable exc, ByteBuffer buffer) {
+            writeRunning.set(false);
+            processException(exc);
+        }
+    }
+    
+    private final WriteCompletionHandler writeCompletionHandler = new WriteCompletionHandler();
+    
     /* (non-Javadoc)
      * @see org.apache.mina.session.AbstractIoSession#writeDirect(java.lang.Object)
      */
@@ -166,30 +194,11 @@ public class Nio2TcpSession extends AbstractIoSession {
     protected int writeDirect(Object message) {
         final ByteBuffer buffer = (ByteBuffer)message;
         
-        final long start = System.currentTimeMillis();
-        
-        final CompletionHandler<Integer, Void> writeHandler = new CompletionHandler<Integer, Void>() {
-            @Override
-            public void failed(Throwable exc, Void attachment) {
-                writeRunning.set(false);
-                processException(exc);
-            }
-            
-            @Override
-            public void completed(Integer result, Void attachment) {
-                //System.out.println("Write confirmed " + result + " bytes " + (System.currentTimeMillis() - start) + " remaining=" + buffer.remaining());
-                if (buffer.remaining() > 0) {
-                    channel.write(buffer, null, this);
-                } else {
-                    writeRunning.set(false);
-                    flushWriteQueue();
-                }
-            }
-        };
         if (writeRunning.compareAndSet(false, true)) {
               int length = buffer.remaining();
               //System.out.println("Writing " + buffer.remaining() + " bytes counter=" + counter++);
-              channel.write(buffer, null, writeHandler);
+              //System.out.println(System.nanoTime() + " starting write");
+              channel.write(buffer, buffer, writeCompletionHandler);
               return length;
             
         } else {
@@ -221,29 +230,14 @@ public class Nio2TcpSession extends AbstractIoSession {
     public void flushWriteQueue() {
         // TODO Auto-generated method stub
         //System.out.println("FlushWriteQueue called");
-        synchronized (getWriteQueue()) {
-            boolean done = false;
-            while (!done) {
-                WriteRequest request = getWriteQueue().poll();
-                if (request != null) {
-                    if (((ByteBuffer)request.getMessage()).remaining() > 0) {
-                      if (writeDirect(request.getMessage()) >= 0) {
-                        //System.out.println("Removing head");
-                          getWriteQueue().poll();
-                          done = true;
-                      } else {
-                          System.out.println("ALERT : can write from flushQueue");
-                      }
-                    } else {
-                        System.out.println("Found a null message");
-                    }
-                } else {
-                    done = true;
-                }
-                
+        if (writeRunning.compareAndSet(false, true)) {
+            WriteRequest request = getWriteQueue().poll();
+            if (request != null) {
+                channel.write((ByteBuffer)request.getMessage(), (ByteBuffer)request.getMessage(), writeCompletionHandler);
+            } else {
+                writeRunning.set(false);
             }
         }
-
     }
 
     /* (non-Javadoc)
@@ -262,13 +256,22 @@ public class Nio2TcpSession extends AbstractIoSession {
         @Override
         public void completed(Integer result, Nio2TcpSession attachment) {
             //System.out.println("Recieved " + result + " bytes");
+            //System.out.println(System.nanoTime() + " end read");
             readRunning.set(false);
             readBuffer.flip();
             processMessageReceived(readBuffer);
             if (attachment.isConnected() && !readSuspended) {
                 attachment.scheduleRead();
             }
-            flushWriteQueue();
+            if (writeRunning.compareAndSet(false, true)) {
+                WriteRequest request = getWriteQueue().poll();
+                if (request != null) {
+                    //System.out.println(System.nanoTime() + " starting write");
+                    channel.write((ByteBuffer)request.getMessage(), (ByteBuffer)request.getMessage(), writeCompletionHandler);
+                } else {
+                    writeRunning.set(false);
+                }
+            }
         }
 
         @Override
@@ -285,7 +288,7 @@ public class Nio2TcpSession extends AbstractIoSession {
     
     protected void scheduleRead() {
         if (readRunning.compareAndSet(false, true)) {
-            //System.out.println("Reading data on the channel");
+            //System.out.println(System.nanoTime() + " starting read");
             readBuffer.rewind();
             channel.read(readBuffer, this, readCompletionHandler);
         }
