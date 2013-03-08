@@ -115,10 +115,16 @@ public abstract class BenchmarkBinaryTest {
      */
     @Test
     public void benchmark() throws IOException, InterruptedException {
-        CountDownLatch counter = new CountDownLatch(numberOfMessages);
+        long start = System.currentTimeMillis();
+        try {
+            CountDownLatch counter = new CountDownLatch(numberOfMessages);
+            client.start(port, counter, data);
+            boolean result = counter.await(timeout, TimeUnit.SECONDS);
+            assertTrue("Still " + counter.getCount() + " messages to send on a total of " + numberOfMessages, result);
+        }
+        finally {
+            System.out.println("Duration=" + (System.currentTimeMillis() - start));
+        }
 
-        client.start(port, counter, data);
-        boolean result = counter.await(timeout, TimeUnit.SECONDS);
-        assertTrue("Still " + counter.getCount() + " messages to send on a total of " + numberOfMessages, result);
     }
 }
