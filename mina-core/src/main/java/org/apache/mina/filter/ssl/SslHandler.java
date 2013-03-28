@@ -658,10 +658,16 @@ class SslHandler {
             inNetBuffer.flip();
         }
 
-        if (inNetBuffer == null || !inNetBuffer.hasRemaining()) {
+        /*
+         * in some extreme conditions, even if the input buffer has been fully read,
+         * we must cqll unwrap. This is the case when a task as generated an error (exception),
+         * this exception is cached in the engine and will be translated to an alert by a call
+         * to unwrap. So lets  the engine decide the underflow condition
+         */
+        /*if (inNetBuffer == null || !inNetBuffer.hasRemaining()) {
             // Need more data.
             return SSLEngineResult.Status.BUFFER_UNDERFLOW;
-        }
+        }*/
 
         SSLEngineResult res = unwrap();
         handshakeStatus = res.getHandshakeStatus();
@@ -675,7 +681,7 @@ class SslHandler {
             res = unwrap();
 
             // prepare to be written again
-            if (inNetBuffer.hasRemaining()) {
+            if ((inNetBuffer != null) && inNetBuffer.hasRemaining()) {
                 inNetBuffer.compact();
             } else {
                 inNetBuffer = null;
@@ -684,7 +690,7 @@ class SslHandler {
             renegotiateIfNeeded(nextFilter, res);
         } else {
             // prepare to be written again
-            if (inNetBuffer.hasRemaining()) {
+            if ((inNetBuffer != null) && inNetBuffer.hasRemaining()) {
                 inNetBuffer.compact();
             } else {
                 inNetBuffer = null;
@@ -712,8 +718,8 @@ class SslHandler {
     private SSLEngineResult unwrap() throws SSLException {
         // We first have to create the application buffer if it does not exist
         if (appBuffer == null) {
-            appBuffer = IoBuffer.allocate(inNetBuffer.remaining());
-        } else {
+            appBuffer = IoBuffer.allocate(sslEngine.getSession().getApplicationBufferSize());
+        } else if (inNetBuffer != null) {
             // We already have one, just add the new data into it
             appBuffer.expand(inNetBuffer.remaining());
         }
@@ -725,7 +731,7 @@ class SslHandler {
 
         do {
             // Decode the incoming data
-            res = sslEngine.unwrap(inNetBuffer.buf(), appBuffer.buf());
+            res = sslEngine.unwrap((inNetBuffer!=null)?inNetBuffer.buf():emptyBuffer.buf(), appBuffer.buf());
             status = res.getStatus();
 
             // We can be processing the Handshake

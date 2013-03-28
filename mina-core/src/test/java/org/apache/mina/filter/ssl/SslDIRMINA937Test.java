@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.Provider;
+import java.security.Provider.Service;
 import java.security.Security;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -92,9 +94,9 @@ public class SslDIRMINA937Test {
         DefaultIoFilterChainBuilder filters = acceptor.getFilterChain();
 
         // Inject the SSL filter
-        SSLContext context = createSSLContext("TLSv1");
+        SSLContext context = createSSLContext("SSLv3");
         SslFilter sslFilter = new SslFilter(context);
-        sslFilter.setEnabledProtocols(new String[] { "TLSv1" });
+        sslFilter.setEnabledProtocols(new String[] { "SSLv3" });
         //sslFilter.setEnabledCipherSuites(getServerCipherSuites(context.getDefaultSSLParameters().getCipherSuites()));
         filters.addLast("sslFilter", sslFilter);
 
@@ -112,25 +114,16 @@ public class SslDIRMINA937Test {
         NioSocketConnector connector = new NioSocketConnector();
         
         DefaultIoFilterChainBuilder filters = connector.getFilterChain();
-        SslFilter sslFilter = new SslFilter(createSSLContext("TLSv1.1"));
-        sslFilter.setEnabledProtocols(new String[] { "TLSv1.1" });
+        SslFilter sslFilter = new SslFilter(createSSLContext("TLSv1"));
+        sslFilter.setEnabledProtocols(new String[] { "TLSv1" });
         sslFilter.setUseClientMode(true);
         //sslFilter.setEnabledCipherSuites(getClientCipherSuites());
         filters.addLast("sslFilter", sslFilter);
         connector.setHandler(new IoHandlerAdapter() {
             @Override
-            public void sessionCreated(IoSession session) throws Exception {
-                session.setAttribute(SslFilter.USE_NOTIFICATION, Boolean.TRUE);
+            public void exceptionCaught(IoSession session, Throwable cause) throws Exception {
+                counter.countDown();
             }
-
-            @Override
-            public void messageReceived(IoSession session, Object message) throws Exception {
-                if (message == SslFilter.SESSION_SECURED) {
-                    counter.countDown();
-                }
-            }
-
-
         });
         connector.connect(new InetSocketAddress("localhost", port));
     }
@@ -156,10 +149,10 @@ public class SslDIRMINA937Test {
     }
 
     /**
-     * Test is ignore as it will cause the build to fail
+     * Test if connection can't be established if the client and server 
+     * protocols are not compatible
      */
     @Test
-    @Ignore
     public void testDIRMINA937() throws Exception {
         startServer();
 
@@ -167,4 +160,5 @@ public class SslDIRMINA937Test {
         startClient(counter);
         assertTrue(counter.await(10, TimeUnit.SECONDS));
     }
+    
 }
